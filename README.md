@@ -11,7 +11,7 @@ Sleep quality is an essential aspect of human health. Modern monitoring tools of
 The CPS Architecture is divided into structured tiers representing the data pipeline flow:
 
 1. **Hardware / Sensing Layer (Edge):** An Arduino Uno handles an MPU6050 accelerometer and an analog pulse sensor to acquire raw physical data continuously.
-2. **Communication Layer:** Hardwired Serial (or wireless via Bluetooth/ESP8266) stream transferring continuous strings of readings to the remote fog processing compute node.
+2. **Communication Layer:** Hardwired USB Serial connection transferring continuous strings of sensor readings directly to the host PC (Fog Node).
 3. **Fog Computing Layer (The Core):** A localized computer or Raspberry Pi receiving the stream. This layer performs:
     - **Preprocessing & Normalization:** Standardizing noise and syncing temporal data frames.
     - **Sliding Window Buffering:** Queuing the incoming stream into `SEQ_LENGTH` (e.g., 30-timestamp) sequence chunks arrays.
