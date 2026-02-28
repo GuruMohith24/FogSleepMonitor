@@ -7,12 +7,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import os
 import joblib
+import joblib
+import logging
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("TrainLSTM")
 
 # Ensure reproducible synthetic dataset
 np.random.seed(42)
 
 def generate_synthetic_data(num_samples=10000, seq_length=30):
-    print("Generating synthetic sleep sensor dataset...")
+    logger.info("Generating synthetic sleep sensor dataset...")
     # Generate continuous variables: AcX, AcY, AcZ, Pulse
     # Sleep states: 0 = Awake, 1 = Stable Sleep, 2 = Restless Sleep, 3 = Disturbed Sleep
     
@@ -73,17 +79,17 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
     
     # 3. Build & Train Model
-    print("Building LSTM model...")
+    logger.info("Building LSTM model...")
     model = build_model((SEQ_LENGTH, num_features), NUM_CLASSES)
-    model.summary()
+    model.summary(print_fn=logger.info)
     
-    print("Training model...")
+    logger.info("Training model...")
     # Train less epochs to save time since it's just meant as a structural implementation
     history = model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
     
     # 4. Evaluate
     loss, acc = model.evaluate(X_test, y_test)
-    print(f"Test Accuracy: {acc:.4f}")
+    logger.info(f"Test Accuracy: {acc:.4f} | Validation Loss: {loss:.4f}")
     
     # 5. Save model and scaler
     model_dir = "saved_models"
@@ -91,4 +97,4 @@ if __name__ == "__main__":
     
     model.save(os.path.join(model_dir, "sleep_lstm_model.h5"))
     joblib.dump(scaler, os.path.join(model_dir, "scaler.pkl"))
-    print("Model and Scaler saved successfully in 'saved_models/'!")
+    logger.info("Model and Scaler saved successfully in 'saved_models/'!")

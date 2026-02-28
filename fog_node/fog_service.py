@@ -1,3 +1,4 @@
+import sys
 import serial
 import time
 import numpy as np
@@ -6,35 +7,26 @@ import tensorflow as tf
 import os
 import joblib
 import threading
+import logging
 
-# Configuration
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Ensure configuration can be imported from parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
 
-SERIAL_PORT = 'COM3' # Change this depending on Arduino's port
-BAUD_RATE = 115200
-SEQ_LENGTH = 30
-MODEL_PATH = os.path.join(BASE_DIR, 'model', 'saved_models', 'sleep_lstm_model.h5')
-SCALER_PATH = os.path.join(BASE_DIR, 'model', 'saved_models', 'scaler.pkl')
-OUTPUT_FILE = os.path.join(BASE_DIR, 'dashboard', 'live_data.csv')
-
-# States mapping
-STATE_LABELS = {
-    0: "Awake",
-    1: "Stable Sleep",
-    2: "Restless Sleep",
-    3: "Disturbed Sleep"
-}
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("FogNode")
 
 class FogProcessingNode:
     def __init__(self):
-        print("Initializing Fog Node processing...")
+        logger.info("Initializing Fog Node processing...")
         # Try loading model and scaler
         try:
-            self.model = tf.keras.models.load_model(MODEL_PATH)
-            self.scaler = joblib.load(SCALER_PATH)
-            print("Model and Scaler loaded successfully.")
+            self.model = tf.keras.models.load_model(config.MODEL_PATH)
+            self.scaler = joblib.load(config.SCALER_PATH)
+            logger.info("Model and Scaler loaded successfully.")
         except Exception as e:
-            print(f"Warning: Could not load model or scaler. {e}")
+            logger.warning(f"Could not load model or scaler. {e}")
             self.model = None
             self.scaler = None
             
@@ -42,9 +34,9 @@ class FogProcessingNode:
         self.lock = threading.Lock()
         
         # Initialize output CSV
-        os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-        with open(OUTPUT_FILE, 'w') as f:
-            f.write("Timestamp,AcX,AcY,AcZ,Pulse,Predicted_State,Disturbance_Reason\n")
+        os.makedirs(os.path.dirname(config.OUTPUT_FILE), exist_ok=True)
+        with open(config.OUTPUT_FILE, 'w') as f:
+            f.write("Timestamp,AcX,AcY,AcZ,Pulse,Predicted_State,Confidence,Disturbance_Reason\n")
             
     def heuristic_analysis(self, window_data):
         """
@@ -76,12 +68,11 @@ class FogProcessingNode:
         Processes the sliding window: scale -> predict -> heuristic -> save
         """
         with self.lock:
-            if len(self.data_buffer) < SEQ_LENGTH:
+            if len(self.data_buffer) < config.SEQ_LENGTH:
                 return
             # Get latest SEQ_LENGTH samples
-            window = np.array(self.data_buffer[-SEQ_LENGTH:])
+            window = np.array(self.data_buffer[-config.SEQ_LENGTH:])
             # Extract just the features, leaving out timestamp for model
-            # window elements: [timestamp, AcX, AcY, AcZ, Pulse]
             timestamps = window[:, 0]
             features = window[:, 1:5]
             
@@ -89,12 +80,13 @@ class FogProcessingNode:
             # Scale features
             scaled_features = self.scaler.transform(features)
             # Reshape for LSTM: (batch, seq_len, features)
-            input_tensor = scaled_features.reshape(1, SEQ_LENGTH, 4)
+            input_tensor = scaled_features.reshape(1, config.SEQ_LENGTH, 4)
             
             # Predict
             predictions = self.model.predict(input_tensor, verbose=0)
             state_idx = np.argmax(predictions[0])
-            state_label = STATE_LABELS.get(state_idx, "Unknown")
+            confidence = float(np.max(predictions[0]))
+            state_label = config.STATE_LABELS.get(state_idx, "Unknown")
             
             # Heuristic interpretation
             if state_idx in [2, 3]: # Restless or Disturbed
@@ -103,6 +95,7 @@ class FogProcessingNode:
                 reason = "None"
         else:
             state_label = "Mocking (Model Not Found)"
+            confidence = 0.0
             reason = "None"
             
         # Save real-time computation to CSV for Dashboard
@@ -112,14 +105,14 @@ class FogProcessingNode:
         latest_acz = features[-1, 2]
         latest_pulse = features[-1, 3]
         
-        with open(OUTPUT_FILE, 'a') as f:
-            f.write(f"{latest_timestamp},{latest_acx},{latest_acy},{latest_acz},{latest_pulse},{state_label},{reason}\n")
+        with open(config.OUTPUT_FILE, 'a') as f:
+            f.write(f"{latest_timestamp},{latest_acx},{latest_acy},{latest_acz},{latest_pulse},{state_label},{confidence:.2f},{reason}\n")
             
-        print(f"[{latest_timestamp}] State: {state_label} | Reason: {reason}")
+        logger.info(f"[{latest_timestamp}] State: {state_label} (Conf: {confidence:.2f}) | Reason: {reason}")
         
     def start_mock_stream(self):
         """ Mocks a serial stream for testing purposes without the hardware. """
-        print("Starting Mock stream...")
+        logger.info("Starting Mock stream (10Hz simulated)...")
         current_time = int(time.time() * 1000)
         while True:
             # generate mock data similar to awake/sleep
@@ -131,16 +124,16 @@ class FogProcessingNode:
             
             with self.lock:
                 self.data_buffer.append([current_time, acx, acy, acz, pulse])
-                if len(self.data_buffer) > SEQ_LENGTH * 2:
+                if len(self.data_buffer) > config.SEQ_LENGTH * 2:
                     self.data_buffer.pop(0)
             
             self.process_window()
-            time.sleep(0.1) # 10Hz
+            time.sleep(1.0 / config.SAMPLING_RATE_HZ)
             
     def start_serial_stream(self):
         try:
-            ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-            print(f"Connected to Arduino on {SERIAL_PORT}")
+            ser = serial.Serial(config.SERIAL_PORT, config.BAUD_RATE, timeout=1)
+            logger.info(f"Connected to Arduino on {config.SERIAL_PORT}")
             while True:
                 line = ser.readline().decode('utf-8').strip()
                 if line:
@@ -151,16 +144,16 @@ class FogProcessingNode:
                             data = [float(p) for p in parts]
                             with self.lock:
                                 self.data_buffer.append(data)
-                                if len(self.data_buffer) > SEQ_LENGTH * 2:
+                                if len(self.data_buffer) > config.SEQ_LENGTH * 2:
                                     self.data_buffer.pop(0)
 
-                            if len(self.data_buffer) >= SEQ_LENGTH:
+                            if len(self.data_buffer) >= config.SEQ_LENGTH:
                                 self.process_window()
                         except ValueError:
                             pass
         except Exception as e:
-            print(f"Serial connection failed: {e}")
-            print("Falling back to mock stream...")
+            logger.error(f"Serial connection failed: {e}")
+            logger.info("Falling back to mock stream...")
             self.start_mock_stream()
 
 if __name__ == "__main__":
