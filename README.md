@@ -26,6 +26,14 @@ Traditional sleep monitoring often relies on cloud-based processing, leading to 
 
 ---
 
+## 📸 Live Dashboard Preview
+
+![Fog-Based Real-Time Sleep Monitoring Dashboard](assets/dashboard_screenshot.png)
+
+> Real-time monitoring showing **Good Sleep** state at **75% sleep score**, heart rate **63.4 BPM**, and movement intensity **0.141** — all computed locally on the Fog Node.
+
+---
+
 ## 🏗️ System Architecture
 
 ```
