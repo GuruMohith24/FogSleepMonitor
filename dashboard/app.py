@@ -80,13 +80,8 @@ def render_dashboard():
                 plot_df = df.tail(100).copy()
                 
                 # Generate a heuristic sleep score (100 = Stable Sleep, 0 = Awake, 50 = Restless)
-                def get_score(state_val):
-                    if state_val == "Stable Sleep": return 100
-                    if state_val == "Restless Sleep": return 50
-                    if state_val == "Disturbed Sleep": return 25
-                    return 0
-                    
-                plot_df['SleepScore'] = plot_df['Predicted_State'].apply(get_score)
+                # Since the model now outputs a proper sleep score, we just use confidence * 100
+                plot_df['SleepScore'] = plot_df['Confidence'] * 100
                 plot_df['Timestamp'] = pd.to_numeric(plot_df['Timestamp'], errors='coerce')
 
                 with placeholder_chart1.container():

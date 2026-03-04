@@ -22,7 +22,7 @@ class FogProcessingNode:
         logger.info("Initializing Fog Node processing...")
         # Try loading model and scaler
         try:
-            self.model = tf.keras.models.load_model(config.MODEL_PATH)
+            self.model = tf.keras.models.load_model(config.MODEL_PATH, compile=False)
             self.scaler = joblib.load(config.SCALER_PATH)
             logger.info("Model and Scaler loaded successfully.")
         except Exception as e:
@@ -72,27 +72,65 @@ class FogProcessingNode:
                 return
             # Get latest SEQ_LENGTH samples
             window = np.array(self.data_buffer[-config.SEQ_LENGTH:])
-            # Extract just the features, leaving out timestamp for model
+            # Extract basic features: AcX, AcY, AcZ, Pulse
             timestamps = window[:, 0]
-            features = window[:, 1:5]
+            raw_features = window[:, 1:5]
             
         if self.model and self.scaler:
+            # Construct the 6 features for each timestep matching the trained model 
+            full_features = []
+            
+            # For rolling variance/avg, we'll keep a temporary history context during the window
+            movements = []
+            hrs = []
+            
+            for row in raw_features:
+                ac_x, ac_y, ac_z, pulse = row
+                movement = np.sqrt(ac_x**2 + ac_y**2 + ac_z**2)
+                movements.append(movement)
+                hrs.append(pulse)
+                
+                # Mock an HRV based on recent pulse variations (or just a default)
+                hrv = max(10, 80 - abs(pulse - 60))
+                
+                # Compute rolling parameters mapped over previous elements up to window=10
+                recent_movements = movements[-10:]
+                recent_hrs = hrs[-10:]
+                
+                movement_variance = np.var(recent_movements) if len(recent_movements) > 1 else 0.0
+                avg_heart_rate = np.mean(recent_hrs)
+                movement_frequency = sum(1 for m in recent_movements if m > 0.1)
+                sleep_duration = 7.0 # Default fixed property 
+                
+                full_features.append([
+                    movement, 
+                    movement_variance, 
+                    avg_heart_rate, 
+                    hrv, 
+                    movement_frequency, 
+                    sleep_duration
+                ])
+            
+            full_features = np.array(full_features)
+            
             # Scale features
-            scaled_features = self.scaler.transform(features)
+            scaled_features = self.scaler.transform(full_features)
             # Reshape for LSTM: (batch, seq_len, features)
-            input_tensor = scaled_features.reshape(1, config.SEQ_LENGTH, 4)
+            input_tensor = scaled_features.reshape(1, config.SEQ_LENGTH, 6)
             
-            # Predict
+            # Predict Score
             predictions = self.model.predict(input_tensor, verbose=0)
-            state_idx = np.argmax(predictions[0])
-            confidence = float(np.max(predictions[0]))
-            state_label = config.STATE_LABELS.get(state_idx, "Unknown")
+            score = float(np.squeeze(predictions)[-1] if len(np.squeeze(predictions).shape) > 0 else np.squeeze(predictions))
             
-            # Heuristic interpretation
-            if state_idx in [2, 3]: # Restless or Disturbed
-                reason = self.heuristic_analysis(features)
+            # Classification
+            if score >= 70:
+                state_label = "Good Sleep"
+                reason = "Low movement and stable HRV"
             else:
-                reason = "None"
+                state_label = "Poor Sleep"
+                reason = "High movement or unstable HRV"
+                
+            confidence = score / 100.0 # UI mapping
         else:
             state_label = "Mocking (Model Not Found)"
             confidence = 0.0
@@ -100,26 +138,26 @@ class FogProcessingNode:
             
         # Save real-time computation to CSV for Dashboard
         latest_timestamp = timestamps[-1]
-        latest_acx = features[-1, 0]
-        latest_acy = features[-1, 1]
-        latest_acz = features[-1, 2]
-        latest_pulse = features[-1, 3]
+        latest_acx = raw_features[-1, 0]
+        latest_acy = raw_features[-1, 1]
+        latest_acz = raw_features[-1, 2]
+        latest_pulse = raw_features[-1, 3]
         
         with open(config.OUTPUT_FILE, 'a') as f:
             f.write(f"{latest_timestamp},{latest_acx},{latest_acy},{latest_acz},{latest_pulse},{state_label},{confidence:.2f},{reason}\n")
             
-        logger.info(f"[{latest_timestamp}] State: {state_label} (Conf: {confidence:.2f}) | Reason: {reason}")
+        logger.info(f"[{latest_timestamp}] State: {state_label} (Score: {score:.1f}%) | Reason: {reason}")
         
     def start_mock_stream(self):
         """ Mocks a serial stream for testing purposes without the hardware. """
         logger.info("Starting Mock stream (10Hz simulated)...")
         current_time = int(time.time() * 1000)
         while True:
-            # generate mock data similar to awake/sleep
-            acx = np.random.randint(-1500, 1500)
-            acy = np.random.randint(-1500, 1500)
-            acz = np.random.randint(-1500, 1500)
-            pulse = np.random.randint(500, 700)
+            # generate mock data matching real distributions (-0.2 to 0.2 ac, 50 to 90 pulse)
+            acx = np.random.normal(0.01, 0.05)
+            acy = np.random.normal(0.01, 0.05)
+            acz = np.random.normal(0.01, 0.05)
+            pulse = np.random.normal(65, 5)
             current_time += 100
             
             with self.lock:

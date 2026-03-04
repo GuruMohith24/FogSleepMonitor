@@ -11,8 +11,8 @@ SEQ_LENGTH = 30        # Number of samples per sliding window (e.g. 30 samples a
 SAMPLING_RATE_HZ = 10
 
 # Model Paths
-MODEL_PATH = os.path.join(BASE_DIR, 'model', 'saved_models', 'sleep_lstm_model.h5')
-SCALER_PATH = os.path.join(BASE_DIR, 'model', 'saved_models', 'scaler.pkl')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'sleep_lstm_model.h5')
+SCALER_PATH = os.path.join(BASE_DIR, 'models', 'scaler.pkl')
 
 # Data Storage
 OUTPUT_FILE = os.path.join(BASE_DIR, 'dashboard', 'live_data.csv')
