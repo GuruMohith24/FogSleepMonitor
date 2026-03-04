@@ -1,0 +1,38 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Raw MMASH dataset (too large for git - download separately)
+data/MMASH/
+data/MMASH.zip
+
+# Processed dataset (112MB - regenerate via: python prepare_mmash_dataset.py)
+data/sleep_sensor_dataset.csv
+
+# Live dashboard data (generated at runtime)
+dashboard/live_data.csv
