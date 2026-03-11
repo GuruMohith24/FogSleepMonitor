@@ -146,17 +146,22 @@ Dense(1, activation='linear')  →  Sleep Score (0-100)
 | `movement_frequency` | Derived | Count of significant movements (>0.1) in rolling window |
 | `sleep_duration` | Sleep Metrics | Total sleep duration in hours |
 
-### 📈 Final Model Evaluation Scores
+### 📈 Model Evaluation & Comparison
 
-| Metric | Score | Description |
-|--------|-------|-------------|
-| **MSE** | 28.88 | Mean Squared Error |
-| **RMSE** | 5.37 | Root Mean Squared Error (±5.37 points on 0-100) |
-| **MAE** | **3.66** | Mean Absolute Error — average prediction off by ~3.7 points |
-| **R² Score** | **0.6716** | Model explains 67.2% of sleep score variance |
-| **Accuracy (±10 pts)** | **92.8%** ✅ | 93% of predictions within 10 points of truth |
-| **Accuracy (±5 pts)** | **77.8%** ✅ | 78% of predictions within 5 points of truth |
-| **Test Samples** | 19,994 | 20% holdout from 100K subsampled rows |
+For academic rigor, we evaluated two distinct architectures:
+1. **LSTM Network:** Preserves the sequential nature of sleep data (30-timestep sliding window).
+2. **XGBoost (Baseline):** The 30-timestep window was flattened into a 180-feature tabular row. 
+
+| Metric | LSTM Score | XGBoost Score | Description |
+|--------|------------|---------------|-------------|
+| **MAE** | **3.66** | **2.23** | Mean Absolute Error — avg points off |
+| **MSE** | 28.88 | 12.03 | Mean Squared Error |
+| **RMSE**| 5.37 | 3.46 | Root MSE |
+| **R² Score** | **0.6716** | **0.8937** | Expained variance (higher is better) |
+| **Acc (±10 pts)** | 92.8% | 97.7% | Predictions within 10 points |
+| **Acc (±5 pts)** | 77.8% | 88.8% | Predictions within 5 points |
+
+> **Why two models?** While XGBoost achieved superior raw accuracy by evaluating all 180 features simultaneously in decision trees, **LSTM** is conceptually more architecturally sound for streaming, sequential time-series physiological data. Both models are maintained in the repository for comparison.
 
 ### Model Output
 - **Score:** Continuous value from **0–100** (higher = better sleep quality)
