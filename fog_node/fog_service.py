@@ -35,6 +35,7 @@ class FogProcessingNode:
         # Thread-safe ring buffer using deque (O(1) append and pop)
         self.data_buffer = deque(maxlen=config.SEQ_LENGTH * 2)
         self.lock = threading.Lock()
+        self.ser = None
 
         # Initialize output CSV
         os.makedirs(os.path.dirname(config.OUTPUT_FILE), exist_ok=True)
@@ -134,12 +135,21 @@ class FogProcessingNode:
             if score >= 70:
                 state_label = "Good Sleep"
                 reason = "Low movement and stable HRV"
+                alert_cmd = b'0'
             else:
                 state_label = "Poor Sleep"
                 # Get detailed heuristic reason for poor sleep
                 reason = self.heuristic_analysis(raw_features)
+                alert_cmd = b'1'
 
             confidence = score / 100.0
+
+            # Send bi-directional feedback to physical layer (Arduino)
+            if self.ser and self.ser.is_open:
+                try:
+                    self.ser.write(alert_cmd)
+                except Exception as e:
+                    logger.debug(f"Failed to send alert to hardware: {e}")
         else:
             state_label = "Mock (Model Not Loaded)"
             score = 0.0
@@ -162,14 +172,14 @@ class FogProcessingNode:
     def start_mock_stream(self):
         """Simulates a sensor stream for testing without hardware."""
         logger.info("Starting Mock stream (10Hz simulated)...")
-        current_time = int(time.time() * 1000)
         while True:
+            # Use actual current time for each reading
+            current_time = int(time.time() * 1000)
             # Realistic sensor distributions matching training data
             acx = np.random.normal(0.01, 0.05)
             acy = np.random.normal(0.01, 0.05)
             acz = np.random.normal(0.01, 0.05)
             pulse = np.random.normal(65, 5)
-            current_time += 100
 
             with self.lock:
                 self.data_buffer.append([current_time, acx, acy, acz, pulse])
@@ -180,10 +190,10 @@ class FogProcessingNode:
     def start_serial_stream(self):
         """Reads live sensor data from Arduino via serial port."""
         try:
-            ser = serial.Serial(config.SERIAL_PORT, config.BAUD_RATE, timeout=1)
+            self.ser = serial.Serial(config.SERIAL_PORT, config.BAUD_RATE, timeout=1)
             logger.info(f"Connected to Arduino on {config.SERIAL_PORT}")
             while True:
-                line = ser.readline().decode('utf-8').strip()
+                line = self.ser.readline().decode('utf-8').strip()
                 if line:
                     parts = line.split(',')
                     if len(parts) == 5:

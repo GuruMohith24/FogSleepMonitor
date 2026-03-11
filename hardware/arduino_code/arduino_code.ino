@@ -5,12 +5,21 @@ int16_t AcX, AcY, AcZ; // Accelerometer variables
 int heartRatePin = A0; // Heart rate sensor analog pin
 int pulseValue; // Heart pulse reading
 
+// Actuators
+const int buzzerPin = 8;
+const int ledPin = 13; // Built-in LED or external LED on pin 13
+
 // Variables for timing
 unsigned long previousMillis = 0;
 const long interval = 100; // 100ms sampling -> 10Hz
 
 void setup() {
   Serial.begin(115200); // High baud rate for fast data transfer
+  
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+  digitalWrite(ledPin, LOW);
   
   // Initialize I2C communication with MPU6050
   Wire.begin();
@@ -26,6 +35,18 @@ void setup() {
 
 void loop() {
   unsigned long currentMillis = millis();
+
+  // Read incoming alert commands from Python Fog Node
+  if (Serial.available() > 0) {
+    char cmd = Serial.read();
+    if (cmd == '1') {
+      digitalWrite(ledPin, HIGH);
+      tone(buzzerPin, 1000); // 1KHz sound
+    } else if (cmd == '0') {
+      digitalWrite(ledPin, LOW);
+      noTone(buzzerPin);
+    }
+  }
 
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;

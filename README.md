@@ -265,6 +265,13 @@ Connect the sensors to your Arduino UNO:
 | –          | GND                |
 | S          | A0                 |
 
+| Actuators (Alerts) | Connect To Arduino |
+| ------------------ | ------------------ |
+| LED Positive (+)   | Pin 13             |
+| LED Negative (- )  | GND                |
+| Buzzer Positive (+)| Pin 8              |
+| Buzzer Negative (-)| GND                |
+
 Flash `hardware/arduino_code/arduino_code.ino` using the Arduino IDE (baud rate: 115200).
 
 ---
