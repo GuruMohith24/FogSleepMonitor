@@ -10,21 +10,38 @@ import config
 
 st.set_page_config(
     page_title="Fog-Based Real-Time Sleep Monitor",
+    page_icon="😴",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("Fog-Based Real-Time Sleep Monitoring System")
+st.title("😴 Fog-Based Real-Time Sleep Monitoring System")
 st.markdown("""
-**Powered by Edge/Fog Computing & LSTM**
-This dashboard provides real-time tracking of sleep behavior. Data is gathered directly from hardware sensors and computed locally on a Fog Node, minimizing latency and preserving privacy. 
+**Powered by Edge/Fog Computing & LSTM**  
+This dashboard provides real-time tracking of sleep behavior. Data is gathered directly 
+from hardware sensors and computed locally on a Fog Node, minimizing latency and preserving privacy.
 """)
 
 if not os.path.exists(config.OUTPUT_FILE):
-    st.warning("Awaiting data from Fog Node... Start `fog_service.py`!")
+    st.warning("⏳ Awaiting data from Fog Node... Start `fog_service.py` first!")
     st.stop()
 
-# Placeholders for metrics and charts
+
+def get_sleep_score_color(score):
+    """Return a color based on sleep score."""
+    if score >= 70:
+        return "🟢"
+    elif score >= 40:
+        return "🟡"
+    return "🔴"
+
+
+# --- Sidebar ---
+st.sidebar.header("⚙️ Settings")
+refresh_rate = st.sidebar.slider("Refresh Rate (seconds)", 1, 10, config.DASHBOARD_REFRESH_RATE)
+chart_window = st.sidebar.slider("Chart History (entries)", 50, 500, 100)
+
+# --- Main Layout ---
 st.markdown("### 📊 Live Sensory Data")
 col1, col2, col3, col4 = st.columns(4)
 placeholder_metric1 = col1.empty()
@@ -39,74 +56,80 @@ placeholder_chart2 = st.empty()
 st.markdown("---")
 placeholder_alerts = st.empty()
 
-def render_dashboard():
-    while True:
-        try:
-            df = pd.read_csv(config.OUTPUT_FILE)
-            if len(df) > 0:
-                latest = df.iloc[-1]
-                
-                # Setup basic metrics
-                state = latest["Predicted_State"]
-                pulse = float(latest["Pulse"])
-                # Fallback to confidence rendering if the old format CSV is present
-                confidence = float(latest["Confidence"]) if "Confidence" in df.columns else 0.0
-                intensity = abs(latest['AcX']) + abs(latest['AcY']) + abs(latest['AcZ'])
-                
-                # Update Metrics
-                with placeholder_metric1.container():
-                    # Color formatting based on sleep state
-                    if state == "Disturbed Sleep":
-                        st.error(f"**State:** {state}")
-                    elif state == "Restless Sleep":
-                        st.warning(f"**State:** {state}")
-                    else:
-                        st.success(f"**State:** {state}")
+# --- Dashboard Loop ---
+while True:
+    try:
+        df = pd.read_csv(config.OUTPUT_FILE)
+        if len(df) > 0:
+            latest = df.iloc[-1]
 
-                with placeholder_metric2.container():
-                    st.metric("Model Confidence", f"{confidence * 100:.1f}%")
+            # Extract metrics
+            state = str(latest["Predicted_State"])
+            pulse = float(latest["Pulse"])
+            confidence = float(latest.get("Confidence", 0.0))
+            sleep_score = confidence * 100
+            intensity = abs(latest['AcX']) + abs(latest['AcY']) + abs(latest['AcZ'])
 
-                with placeholder_metric3.container():
-                    # High pulse alert highlighting
-                    if pulse > 650:
-                        st.warning(f"Heart Rate: {pulse:.1f} bpm (Elevated)")
-                    else:
-                        st.metric("Heart Rate (Pulse)", f"{pulse:.1f} bpm")
+            # Metric 1: Sleep State
+            with placeholder_metric1.container():
+                if state == "Poor Sleep":
+                    st.error(f"**State:** {state}")
+                elif state == "Good Sleep":
+                    st.success(f"**State:** {state}")
+                else:
+                    st.info(f"**State:** {state}")
 
-                with placeholder_metric4.container():
-                    st.metric("Movement Intensity", f"{intensity:.1f}")
-                
-                # Plot charts (last 100 entries for better visualization)
-                plot_df = df.tail(100).copy()
-                
-                # Generate a heuristic sleep score (100 = Stable Sleep, 0 = Awake, 50 = Restless)
-                # Since the model now outputs a proper sleep score, we just use confidence * 100
-                plot_df['SleepScore'] = plot_df['Confidence'] * 100
-                plot_df['Timestamp'] = pd.to_numeric(plot_df['Timestamp'], errors='coerce')
+            # Metric 2: Sleep Score
+            with placeholder_metric2.container():
+                emoji = get_sleep_score_color(sleep_score)
+                st.metric("Sleep Score", f"{emoji} {sleep_score:.1f}%")
 
-                with placeholder_chart1.container():
-                    st.subheader("Heart Rate Over Time")
-                    st.line_chart(plot_df.set_index('Timestamp')['Pulse'])
-                    
-                with placeholder_chart2.container():
-                    st.subheader("Sleep Score Trends")
-                    st.area_chart(plot_df.set_index('Timestamp')['SleepScore'])
-                
-                # Disturbance alerts
-                disturbances = df[df['Disturbance_Reason'] != 'None'].tail(5)
-                with placeholder_alerts.container():
-                    st.subheader("🚨 Recent Disturbance Alerts")
-                    if len(disturbances) > 0:
-                        for idx, row in disturbances.iterrows():
-                            # Include timestamp logically formatted 
-                            st.error(f"**Disturbance detected** - Reason: `{row['Disturbance_Reason']}` (Time: {row['Timestamp']})")
-                    else:
-                        st.success("No disturbances detected recently. Sleep is stable.")
-                        
-        except Exception as e:
-            st.error(f"Error reading live data: {e}")
-            
-        time.sleep(config.DASHBOARD_REFRESH_RATE) # Refresh rate
+            # Metric 3: Heart Rate
+            with placeholder_metric3.container():
+                if pulse > 90:
+                    st.warning(f"❤️ Heart Rate: {pulse:.1f} bpm (Elevated)")
+                else:
+                    st.metric("❤️ Heart Rate", f"{pulse:.1f} bpm")
 
-# Run continuous refresh
-render_dashboard()
+            # Metric 4: Movement
+            with placeholder_metric4.container():
+                st.metric("🏃 Movement Intensity", f"{intensity:.3f}")
+
+            # --- Charts ---
+            plot_df = df.tail(chart_window).copy()
+            plot_df['SleepScore'] = plot_df['Confidence'] * 100
+            plot_df['Timestamp'] = pd.to_numeric(plot_df['Timestamp'], errors='coerce')
+            plot_df = plot_df.dropna(subset=['Timestamp'])
+
+            with placeholder_chart1.container():
+                st.subheader("❤️ Heart Rate Over Time")
+                st.line_chart(plot_df.set_index('Timestamp')['Pulse'])
+
+            with placeholder_chart2.container():
+                st.subheader("📈 Sleep Score Trends")
+                st.area_chart(plot_df.set_index('Timestamp')['SleepScore'])
+
+            # --- Disturbance Alerts ---
+            disturbances = df[
+                (df['Disturbance_Reason'] != 'None') &
+                (df['Disturbance_Reason'] != 'Low movement and stable HRV')
+            ].tail(5)
+
+            with placeholder_alerts.container():
+                st.subheader("🚨 Recent Disturbance Alerts")
+                if len(disturbances) > 0:
+                    for _, row in disturbances.iterrows():
+                        st.error(
+                            f"**Disturbance detected** — "
+                            f"Reason: `{row['Disturbance_Reason']}` "
+                            f"(Time: {row['Timestamp']})"
+                        )
+                else:
+                    st.success("✅ No disturbances detected recently. Sleep is stable.")
+
+    except pd.errors.EmptyDataError:
+        st.info("Waiting for data from Fog Node...")
+    except Exception as e:
+        st.error(f"Error reading live data: {e}")
+
+    time.sleep(refresh_rate)
