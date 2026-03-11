@@ -248,19 +248,22 @@ python train_model.py
 
 > **Note:** Pre-trained model files (`models/sleep_lstm_model.h5`, `models/scaler.pkl`) are included in the repo. You can skip Step 2 if you just want to run the system.
 
-### 5. Hardware Setup (Optional)
+### 5. Hardware Setup
 
 Connect the sensors to your Arduino UNO:
 
-| Sensor | Pin | Arduino Pin |
-|--------|-----|-------------|
-| PPG Pulse Sensor | Signal | A0 |
-| PPG Pulse Sensor | VCC | 5V |
-| PPG Pulse Sensor | GND | GND |
-| MPU-6050 | SDA | A4 |
-| MPU-6050 | SCL | A5 |
-| MPU-6050 | VCC | 5V |
-| MPU-6050 | GND | GND |
+| Accelerometer(MPU6050) | Arduino UNO                  |
+| ------------- | ---------------------------- |
+| VCC           | 5V                          |
+| GND           | GND                          |
+| SDA           | A4                           |
+| SCL           | A5                           |
+
+| Sensor Pad | Connect To Arduino |
+| ---------- | ------------------ |
+| +          | 5V                 |
+| –          | GND                |
+| S          | A0                 |
 
 Flash `hardware/arduino_code/arduino_code.ino` using the Arduino IDE (baud rate: 115200).
 
