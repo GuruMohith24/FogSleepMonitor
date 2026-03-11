@@ -34,8 +34,7 @@ initial_rows = len(data)
 data = data.dropna()
 logger.info(f"Cleaned {initial_rows - len(data)} rows with missing values. Remaining: {len(data)} rows.")
 
-# Subsample for memory efficiency (LSTM sequences of 1.4M rows = ~168GB RAM needed)
-# We keep 100K contiguous rows to preserve temporal patterns per subject
+
 MAX_ROWS = 100000
 if len(data) > MAX_ROWS:
     logger.info(f"Subsampling from {len(data)} to {MAX_ROWS} rows for memory efficiency...")

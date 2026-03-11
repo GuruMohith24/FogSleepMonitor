@@ -56,80 +56,85 @@ placeholder_chart2 = st.empty()
 st.markdown("---")
 placeholder_alerts = st.empty()
 
-# --- Dashboard Loop ---
-while True:
-    try:
-        df = pd.read_csv(config.OUTPUT_FILE)
-        if len(df) > 0:
-            latest = df.iloc[-1]
+# --- Dashboard Update ---
+try:
+    df = pd.read_csv(config.OUTPUT_FILE)
+    if len(df) > 0:
+        latest = df.iloc[-1]
 
-            # Extract metrics
-            state = str(latest["Predicted_State"])
-            pulse = float(latest["Pulse"])
-            confidence = float(latest.get("Confidence", 0.0))
-            sleep_score = confidence * 100
-            intensity = abs(latest['AcX']) + abs(latest['AcY']) + abs(latest['AcZ'])
+        # Extract metrics
+        state = str(latest["Predicted_State"])
+        pulse = float(latest["Pulse"])
+        confidence = float(latest.get("Confidence", 0.0))
+        sleep_score = confidence * 100
+        intensity = abs(latest['AcX']) + abs(latest['AcY']) + abs(latest['AcZ'])
 
-            # Metric 1: Sleep State
-            with placeholder_metric1.container():
-                if state == "Poor Sleep":
-                    st.error(f"**State:** {state}")
-                elif state == "Good Sleep":
-                    st.success(f"**State:** {state}")
-                else:
-                    st.info(f"**State:** {state}")
+        # Metric 1: Sleep State
+        with placeholder_metric1.container():
+            if state == "Poor Sleep":
+                st.error(f"**State:** {state}")
+            elif state == "Good Sleep":
+                st.success(f"**State:** {state}")
+            else:
+                st.info(f"**State:** {state}")
 
-            # Metric 2: Sleep Score
-            with placeholder_metric2.container():
-                emoji = get_sleep_score_color(sleep_score)
-                st.metric("Sleep Score", f"{emoji} {sleep_score:.1f}%")
+        # Metric 2: Sleep Score
+        with placeholder_metric2.container():
+            emoji = get_sleep_score_color(sleep_score)
+            st.metric("Sleep Score", f"{emoji} {sleep_score:.1f}%")
 
-            # Metric 3: Heart Rate
-            with placeholder_metric3.container():
-                if pulse > 90:
-                    st.warning(f"❤️ Heart Rate: {pulse:.1f} bpm (Elevated)")
-                else:
-                    st.metric("❤️ Heart Rate", f"{pulse:.1f} bpm")
+        # Metric 3: Heart Rate
+        with placeholder_metric3.container():
+            if pulse > 90:
+                st.warning(f"❤️ Heart Rate: {pulse:.1f} bpm (Elevated)")
+            else:
+                st.metric("❤️ Heart Rate", f"{pulse:.1f} bpm")
 
-            # Metric 4: Movement
-            with placeholder_metric4.container():
-                st.metric("🏃 Movement Intensity", f"{intensity:.3f}")
+        # Metric 4: Movement
+        with placeholder_metric4.container():
+            st.metric("🏃 Movement Intensity", f"{intensity:.3f}")
 
-            # --- Charts ---
-            plot_df = df.tail(chart_window).copy()
-            plot_df['SleepScore'] = plot_df['Confidence'] * 100
-            plot_df['Timestamp'] = pd.to_numeric(plot_df['Timestamp'], errors='coerce')
-            plot_df = plot_df.dropna(subset=['Timestamp'])
+        # --- Charts ---
+        plot_df = df.tail(chart_window).copy()
+        plot_df['SleepScore'] = plot_df['Confidence'] * 100
+        plot_df['Timestamp'] = pd.to_numeric(plot_df['Timestamp'], errors='coerce')
+        plot_df = plot_df.dropna(subset=['Timestamp'])
+        # Convert raw millisecond timestamps to readable local time (IST = UTC+5:30)
+        from datetime import timedelta
+        plot_df['Time'] = (pd.to_datetime(plot_df['Timestamp'], unit='ms') + timedelta(hours=5, minutes=30)).dt.strftime('%H:%M:%S')
+        # Average multiple readings per second to get a smooth line (10Hz → 1 point/sec)
+        plot_df = plot_df.groupby('Time', sort=False).agg({'Pulse': 'mean', 'SleepScore': 'mean'}).reset_index()
 
-            with placeholder_chart1.container():
-                st.subheader("❤️ Heart Rate Over Time")
-                st.line_chart(plot_df.set_index('Timestamp')['Pulse'])
+        with placeholder_chart1.container():
+            st.subheader("❤️ Heart Rate Over Time")
+            st.line_chart(plot_df, x='Time', y='Pulse')
 
-            with placeholder_chart2.container():
-                st.subheader("📈 Sleep Score Trends")
-                st.area_chart(plot_df.set_index('Timestamp')['SleepScore'])
+        with placeholder_chart2.container():
+            st.subheader("📈 Sleep Score Trends")
+            st.area_chart(plot_df, x='Time', y='SleepScore')
 
-            # --- Disturbance Alerts ---
-            disturbances = df[
-                (df['Disturbance_Reason'] != 'None') &
-                (df['Disturbance_Reason'] != 'Low movement and stable HRV')
-            ].tail(5)
+        # --- Disturbance Alerts ---
+        disturbances = df[
+            (df['Disturbance_Reason'] != 'None') &
+            (df['Disturbance_Reason'] != 'Low movement and stable HRV')
+        ].tail(5)
 
-            with placeholder_alerts.container():
-                st.subheader("🚨 Recent Disturbance Alerts")
-                if len(disturbances) > 0:
-                    for _, row in disturbances.iterrows():
-                        st.error(
-                            f"**Disturbance detected** — "
-                            f"Reason: `{row['Disturbance_Reason']}` "
-                            f"(Time: {row['Timestamp']})"
-                        )
-                else:
-                    st.success("✅ No disturbances detected recently. Sleep is stable.")
+        with placeholder_alerts.container():
+            st.subheader("🚨 Recent Disturbance Alerts")
+            if len(disturbances) > 0:
+                for _, row in disturbances.iterrows():
+                    st.error(
+                        f"**Disturbance detected** — "
+                        f"Reason: `{row['Disturbance_Reason']}` "
+                        f"(Time: {row['Timestamp']})"
+                    )
+            else:
+                st.success("✅ No disturbances detected recently. Sleep is stable.")
 
-    except pd.errors.EmptyDataError:
-        st.info("Waiting for data from Fog Node...")
-    except Exception as e:
-        st.error(f"Error reading live data: {e}")
+except pd.errors.EmptyDataError:
+    st.info("Waiting for data from Fog Node...")
+except Exception as e:
+    st.error(f"Error reading live data: {e}")
 
-    time.sleep(refresh_rate)
+time.sleep(refresh_rate)
+st.rerun()

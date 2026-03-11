@@ -118,9 +118,12 @@ class FogProcessingNode:
         timestamps = window[:, 0]
         raw_features = window[:, 1:5].copy()  # [AcX, AcY, AcZ, Pulse]
 
+        # MPU-6050 max raw range is generally +/- 16384 for +/- 2g
+        ac_normalized = raw_features[:, :3] / 16384.0
+
         if self.model is not None and self.scaler is not None:
             # Build 6-feature matrix matching training pipeline
-            full_features = self._build_feature_vector(raw_features)
+            full_features = self._build_feature_vector(raw_features, ac_normalized)
 
             # Scale and reshape for LSTM: (1, seq_len, 6)
             scaled_features = self.scaler.transform(full_features)
@@ -139,7 +142,7 @@ class FogProcessingNode:
             else:
                 state_label = "Poor Sleep"
                 # Get detailed heuristic reason for poor sleep
-                reason = self.heuristic_analysis(raw_features)
+                reason = self.heuristic_analysis(raw_features, ac_normalized)
                 alert_cmd = b'1'
 
             confidence = score / 100.0
