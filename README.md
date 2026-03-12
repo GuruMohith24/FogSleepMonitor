@@ -1,4 +1,4 @@
-# 😴 Fog-Based Real-Time Sleep Quality Monitoring System
+# Fog-Based Real-Time Sleep Quality Monitoring System
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-orange.svg)](https://tensorflow.org)
@@ -12,7 +12,7 @@ A **Cyber-Physical System (CPS)** and **Machine Learning** project that provides
 
 ---
 
-## 🚀 Project Overview
+##  Project Overview
 
 Traditional sleep monitoring often relies on cloud-based processing, leading to latency issues and privacy concerns. This project addresses these gaps with a **three-layer Fog Computing architecture**:
 
@@ -34,7 +34,7 @@ Traditional sleep monitoring often relies on cloud-based processing, leading to 
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -117,7 +117,7 @@ Each data point is further modulated by instantaneous movement intensity and hea
 
 ---
 
-## 🧠 Model Architecture & Results
+## Model Architecture & Results
 
 ### LSTM Architecture
 
@@ -373,10 +373,8 @@ export SLEEP_SERIAL_PORT=/dev/ttyUSB0
 
 ## 👥 Contributors
 
-| Name | Role | GitHub |
-|------|------|--------|
-| **Guru Mohith** | Lead Developer & ML Engineer | [@GuruMohith24](https://github.com/GuruMohith24) |
-| **Guhya** | Initial Architecture & Hardware Integration | [@guhya-16](https://github.com/guhya-16) |
+@GuruMohith24 (https://github.com/GuruMohith24
+@guhya-16 (https://github.com/guhya-16
 
 > **Original Repository:** [github.com/guhya-16/FogSleepMonitor](https://github.com/guhya-16/FogSleepMonitor)
 
