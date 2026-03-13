@@ -42,33 +42,31 @@ class FogProcessingNode:
         with open(config.OUTPUT_FILE, 'w') as f:
             f.write("Timestamp,AcX,AcY,AcZ,Pulse,Predicted_State,Confidence,Disturbance_Reason\n")
 
-    def heuristic_analysis(self, window_data):
+    def heuristic_analysis(self, raw_features, ac_normalized):
         """
         Analyze contributing factors to interpret why a disturbance occurred.
-        window_data: shape (SEQ_LENGTH, 4) -> AcX, AcY, AcZ, Pulse
-        Returns a human-readable reason string.
+        ac_normalized: shape (SEQ_LENGTH, 3) -> AcX, AcY, AcZ (in g-force)
         """
-        ac_data = window_data[:, :3]
-        pulse_data = window_data[:, 3]
+        pulse_data = raw_features[:, 3]
 
-        ac_std = np.std(ac_data, axis=0)
-        movement_intensity = np.mean(ac_std)
+        ac_std = np.std(ac_normalized, axis=0)
+        movement_intensity = np.mean(ac_std) * 1000
         pulse_mean = np.mean(pulse_data)
         pulse_std = np.std(pulse_data)
 
         # Prioritised check — most severe condition first
-        if movement_intensity > 2000:
+        if movement_intensity > 500:
             return "Excessive Physical Movement"
         elif pulse_mean > 100 and pulse_std > 15:
             return "Abnormal Heart-Rate (Stress/Nightmare)"
-        elif movement_intensity > 1000 and pulse_mean > 80:
+        elif movement_intensity > 150 and pulse_mean > 80:
             return "Restless tossing and turning"
         elif pulse_std > 20:
             return "Irregular Physiological Rhythm"
 
         return "Normal"
 
-    def _build_feature_vector(self, raw_features):
+    def _build_feature_vector(self, raw_features, ac_normalized):
         """
         Build the 6-feature vector per timestep that matches train_model.py's feature set:
         [movement_magnitude, movement_variance, avg_heart_rate, hrv, movement_frequency, sleep_duration]
@@ -77,8 +75,9 @@ class FogProcessingNode:
         movements = []
         hrs = []
 
-        for row in raw_features:
-            ac_x, ac_y, ac_z, pulse = row
+        for i, row in enumerate(raw_features):
+            ac_x, ac_y, ac_z = ac_normalized[i]
+            pulse = row[3]
             movement = np.sqrt(ac_x**2 + ac_y**2 + ac_z**2)
             movements.append(movement)
             hrs.append(pulse)
