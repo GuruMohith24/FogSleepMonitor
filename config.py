@@ -11,7 +11,7 @@ SEQ_LENGTH = 30          # Samples per sliding window (30 samples at 10Hz = 3 se
 SAMPLING_RATE_HZ = 10
 
 # --- Model Paths ---
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'sleep_lstm_model.h5')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'sleep_model.tflite')
 SCALER_PATH = os.path.join(BASE_DIR, 'models', 'scaler.pkl')
 
 # --- Data Storage ---

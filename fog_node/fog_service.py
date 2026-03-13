@@ -24,12 +24,16 @@ class FogProcessingNode:
 
         # Load model and scaler
         try:
-            self.model = tf.keras.models.load_model(config.MODEL_PATH, compile=False)
+            self.interpreter = tf.lite.Interpreter(model_path=config.MODEL_PATH)
+            self.interpreter.allocate_tensors()
+            self.input_details = self.interpreter.get_input_details()
+            self.output_details = self.interpreter.get_output_details()
+            
             self.scaler = joblib.load(config.SCALER_PATH)
-            logger.info("Model and Scaler loaded successfully.")
+            logger.info("TFLite Model and Scaler loaded successfully. Ready for rapid Edge Inference.")
         except Exception as e:
-            logger.warning(f"Could not load model or scaler: {e}")
-            self.model = None
+            logger.warning(f"Could not load TFLite model or scaler: {e}")
+            self.interpreter = None
             self.scaler = None
 
         # Thread-safe ring buffer using deque (O(1) append and pop)
@@ -120,16 +124,21 @@ class FogProcessingNode:
         # MPU-6050 max raw range is generally +/- 16384 for +/- 2g
         ac_normalized = raw_features[:, :3] / 16384.0
 
-        if self.model is not None and self.scaler is not None:
+        if self.interpreter is not None and self.scaler is not None:
             # Build 6-feature matrix matching training pipeline
             full_features = self._build_feature_vector(raw_features, ac_normalized)
 
             # Scale and reshape for LSTM: (1, seq_len, 6)
             scaled_features = self.scaler.transform(full_features)
-            input_tensor = scaled_features.reshape(1, config.SEQ_LENGTH, 6)
-
-            # Predict sleep score
-            predictions = self.model.predict(input_tensor, verbose=0)
+            
+            # TFLite requires exact precision (float32) and exact tensor feeding
+            input_tensor = np.array(scaled_features.reshape(1, config.SEQ_LENGTH, 6), dtype=np.float32)
+            
+            # Predict using TFLite Interpreter
+            self.interpreter.set_tensor(self.input_details[0]['index'], input_tensor)
+            self.interpreter.invoke()
+            predictions = self.interpreter.get_tensor(self.output_details[0]['index'])
+            
             score = float(predictions[0][0])
             score = np.clip(score, 0, 100)
 
