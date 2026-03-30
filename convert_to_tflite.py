@@ -18,22 +18,32 @@ if not os.path.exists(keras_model_path):
 
 logger.info(f"Loading heavy Keras model from {keras_model_path}...")
 try:
-    model = tf.keras.models.load_model(keras_model_path, compile=False)
-    logger.info("Model loaded successfully.")
+    keras_model = tf.keras.models.load_model(keras_model_path, compile=False)
+    
+    # --- Hack for LSTM TFLite Conversion ---
+    # TFLite hates dynamic batch sizes (None) for LSTMs. It uses FlexOps which crash on Windows/Microcontrollers.
+    # By forcing a static batch shape of 1, TFLite can natively compile it to clean C++ instructions.
+    
+    # Create an identical model with a static batch size
+    input_shape = (1, 30, 6)  # (batch_size, seq_length, features)
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.InputLayer(input_shape=input_shape[1:], batch_size=input_shape[0]),
+        tf.keras.layers.LSTM(64, return_sequences=True),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.LSTM(32),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(1, activation="linear")
+    ])
+    model.set_weights(keras_model.get_weights())
+    
+    logger.info("Model loaded and statically shaped for TFLite successfully.")
     
     # --- Convert to TFLite ---
-    logger.info("Converting model to TensorFlow Lite format (Optimizing for Edge)...")
+    logger.info("Converting model to TensorFlow Lite format (Native Ops only)...")
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     
     # Enable optimizations for size and speed (Default quantization)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    
-    # Note: LSTM layers require Select TF Ops or specific Experimental Lowering
-    converter.target_spec.supported_ops = [
-        tf.lite.OpsSet.TFLITE_BUILTINS, 
-        tf.lite.OpsSet.SELECT_TF_OPS
-    ]
-    converter.experimental_lower_tensor_list_ops = False
     
     tflite_model = converter.convert()
     
