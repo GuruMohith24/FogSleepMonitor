@@ -1,405 +1,147 @@
 # Fog-Based Real-Time Sleep Quality Monitoring System
 
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
-[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-orange.svg)](https://tensorflow.org)
-[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-red.svg)](https://streamlit.io)
-[![Dataset](https://img.shields.io/badge/Dataset-MMASH_(PhysioNet)-brightgreen.svg)](https://physionet.org/content/mmash/1.0.0/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-A **Cyber-Physical System (CPS)** and **Machine Learning** project that provides **real-time, privacy-focused sleep quality estimation**. The system integrates wearable hardware sensors (PPG + Accelerometer) with a deep-learning LSTM network, processing physiological data locally via **Fog Computing** to deliver an interpretable sleep score from **0–100**.
-
-> **Original Repository:** Forked and improved from [@guhya-16/FogSleepMonitor](https://github.com/guhya-16/FogSleepMonitor)
+A **Cyber-Physical System** that monitors sleep quality in real-time using wearable sensors, **Fog Computing**, and a **TensorFlow Lite LSTM** model — all processed locally with zero cloud dependency.
 
 ---
 
-##  Project Overview
+## Architecture
 
-Traditional sleep monitoring often relies on cloud-based processing, leading to latency issues and privacy concerns. This project addresses these gaps with a **three-layer Fog Computing architecture**:
+```
+┌──────────────────────────────────────────────────────┐
+│                    FOG LAYER (Laptop)                 │
+│                                                      │
+│  Preprocessing  →  TFLite LSTM  →  Streamlit Dashboard│
+│  (Feature Eng.)    (64→32 units)    (Live Score + HR) │
+└──────────────────────────────────────────────────────┘
+                        ↑
+              USB Serial (115200 baud)
+                        ↑
+┌──────────────────────────────────────────────────────┐
+│                 EDGE LAYER (Arduino)                  │
+│                                                      │
+│  Arduino UNO + MPU-6050 (Accel) + PPG Pulse Sensor   │
+│  Output: timestamp, AcX, AcY, AcZ, Pulse @ 10Hz     │
+└──────────────────────────────────────────────────────┘
+```
 
-| Feature | Description |
-|---------|-------------|
-| 🔒 **Local Processing (Fog Node)** | Uses a laptop as a processing hub — **no data leaves your machine** |
-| ⚡ **Real-Time Sensing** | Captures raw accelerometer + PPG data via Arduino at **10Hz** sampling rate |
-| 🧠 **Deep Learning (LSTM)** | Processes 30-step sliding windows of physiological data for temporal pattern recognition |
-| 📊 **Live Dashboard** | Streamlit-powered real-time visualization with sleep scores, HR trends, and alerts |
-| 📦 **Real Dataset** | Trained on the **MMASH dataset** (PhysioNet) — 22 real human subjects, 1.4M data points |
+**Flow:** Arduino reads sensors → sends CSV over serial → Laptop (Fog Node) runs TFLite inference → Streamlit shows live results.
 
 ---
 
-## 📸 Live Dashboard Preview
+## Dataset
 
-![Fog-Based Real-Time Sleep Monitoring Dashboard](assets/dashboard_screenshot.png)
+**MMASH** (PhysioNet) — 22 real subjects, 1.4M data points of accelerometer + heart rate during sleep.
 
-> Real-time monitoring showing **Good Sleep** state at **75% sleep score**, heart rate **63.4 BPM**, and movement intensity **0.141** — all computed locally on the Fog Node.
-
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         CYBER / FOG LAYER                              │
-│                                                                        │
-│  ┌─────────────────┐   ┌──────────────────┐   ┌────────────────────┐  │
-│  │  Preprocessing   │ → │   LSTM Model     │ → │  Streamlit         │  │
-│  │  • Rolling HRV   │   │  (64→32 units)   │   │  Dashboard         │  │
-│  │  • Movement Mag   │   │  30-step windows │   │  • Live Score      │  │
-│  │  • Feature Eng.   │   │  → Score 0-100   │   │  • HR Charts       │  │
-│  └─────────────────┘   └──────────────────┘   └────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
-                                ↑
-                      USB Serial (115200 baud)
-                                ↑
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        PHYSICAL LAYER                                   │
-│                                                                         │
-│     ┌───────────────────────────────────────────────────────────┐       │
-│     │   Arduino UNO R3                                          │       │
-│     │   ├── MPU-6050 Accelerometer (I2C: SDA/SCL)               │       │
-│     │   └── PPG Pulse Sensor (Analog: A0)                       │       │
-│     │                                                            │       │
-│     │   Output: timestamp, AcX, AcY, AcZ, PulseValue           │       │
-│     │   Rate: 10 samples/second (100ms interval)                │       │
-│     └───────────────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**Data Flow:**
-1. **Physical Layer** → Arduino reads raw accelerometer (XYZ) + heart rate (PPG) at 10Hz
-2. **Communication** → Data sent via USB Serial (PySerial, 115200 baud) as CSV packets
-3. **Fog Layer** → Python processes features in real-time, LSTM predicts sleep quality
-4. **Dashboard** → Streamlit displays live metrics, charts, and sleep state classification
+> Citation: Schmidt, P. & Reiss, A. (2018). *MMASH Dataset*. PhysioNet. https://doi.org/10.24432/C57K5T
 
 ---
 
-## 📊 Dataset: MMASH (PhysioNet)
+## ML Model
 
-We use the **Multilevel Monitoring of Activity and Sleep in Healthy People (MMASH)** dataset, a publicly available research dataset from PhysioNet.
-
-| Property | Details |
-|----------|---------|
-| **Source** | [PhysioNet — MMASH v1.0.0](https://physionet.org/content/mmash/1.0.0/) |
-| **Subjects** | 22 real human participants |
-| **Total Data Points** | **1,394,316** sensor readings |
-| **Sensors Used** | Actigraph (3-axis accelerometer + HR), HR Monitor (beat-to-beat RR intervals) |
-| **Sleep Metrics** | Total Sleep Time, WASO, Sleep Efficiency, Fragmentation Index, Awakenings |
-| **Sampling Rate** | 1 Hz (per-second readings) |
-| **Format** | CSV files per subject |
-
-### Why MMASH (Not WESAD)?
-
-| Factor | WESAD ❌ | MMASH ✅ |
-|--------|---------|---------|
-| **Purpose** | Stress/emotion detection | **Sleep & activity monitoring** |
-| **Context** | Lab test while awake | **24-hour monitoring including sleep** |
-| **Matching Sensors** | 7+ modalities (ECG, EMG...) | **Accelerometer XYZ + HR** (matches our Arduino!) |
-| **Sleep Quality Data** | None | ✅ TST, WASO, Efficiency, Fragmentation |
-| **HRV** | Not directly available | ✅ **Beat-to-beat RR intervals** (computed RMSSD) |
-
-### Sleep Score Formula
-
-Our composite sleep score (0–100) is derived from clinical sleep metrics:
-
-```
-Score = (Efficiency × 0.40) + (WASO_penalty × 0.30) + (Awakening_penalty × 0.15) + (Fragmentation_penalty × 0.15)
-```
-
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Sleep Efficiency | 40% | Ratio of total sleep time to time in bed |
-| WASO Penalty | 30% | Penalizes wake time relative to sleep time |
-| Awakening Frequency | 15% | Penalizes frequent night awakenings |
-| Sleep Fragmentation | 15% | Penalizes high movement/fragmentation index |
-
-Each data point is further modulated by instantaneous movement intensity and heart rate deviation from resting baseline.
-
-> **Citation:** Schmidt, P. & Reiss, A. (2018). MMASH Dataset. PhysioNet. https://doi.org/10.24432/C57K5T
+| Detail | Value |
+|--------|-------|
+| **Architecture** | LSTM(64) → Dropout(0.2) → LSTM(32) → Dropout(0.2) → Dense(1) |
+| **Input** | 30 timesteps × 6 features (movement magnitude, variance, avg HR, HRV, movement frequency, sleep duration) |
+| **Output** | Sleep Score 0–100 → Good (≥70) / Poor (<70) |
+| **Format** | TensorFlow Lite (`.tflite`) — optimized for edge inference |
+| **Scaler** | MinMaxScaler fitted on training set, serialized as `scaler.pkl` |
 
 ---
 
-## Model Architecture & Results
-
-### LSTM Architecture
-
-```
-Input (30 timesteps × 6 features)
-    ↓
-LSTM(64 units, return_sequences=True)
-    ↓
-Dropout(0.2)
-    ↓
-LSTM(32 units)
-    ↓
-Dropout(0.2)
-    ↓
-Dense(1, activation='linear')  →  Sleep Score (0-100)
-```
-
-### Feature Engineering Pipeline
-
-| Feature | Source | Description |
-|---------|--------|-------------|
-| `movement_magnitude` | Accelerometer | `√(AcX² + AcY² + AcZ²)` — total movement intensity |
-| `movement_variance` | Derived | Rolling variance (window=10) of movement magnitude |
-| `avg_heart_rate` | PPG Sensor | Rolling average heart rate (window=10) |
-| `hrv` | RR Intervals | Heart Rate Variability — RMSSD from beat-to-beat intervals |
-| `movement_frequency` | Derived | Count of significant movements (>0.1) in rolling window |
-| `sleep_duration` | Sleep Metrics | Total sleep duration in hours |
-
-### 📈 Model Evaluation & Comparison
-
-For academic rigor, we evaluated two distinct architectures:
-1. **LSTM Network:** Preserves the sequential nature of sleep data (30-timestep sliding window).
-2. **XGBoost (Baseline):** The 30-timestep window was flattened into a 180-feature tabular row. 
-
-| Metric | LSTM Score | XGBoost Score | Description |
-|--------|------------|---------------|-------------|
-| **MAE** | **3.66** | **2.23** | Mean Absolute Error — avg points off |
-| **MSE** | 28.88 | 12.03 | Mean Squared Error |
-| **RMSE**| 5.37 | 3.46 | Root MSE |
-| **R² Score** | **0.6716** | **0.8937** | Expained variance (higher is better) |
-| **Acc (±10 pts)** | 92.8% | 97.7% | Predictions within 10 points |
-| **Acc (±5 pts)** | 77.8% | 88.8% | Predictions within 5 points |
-
-> **Why two models?** While XGBoost achieved superior raw accuracy by evaluating all 180 features simultaneously in decision trees, **LSTM** is conceptually more architecturally sound for streaming, sequential time-series physiological data. Both models are maintained in the repository for comparison.
-
-### Model Output
-- **Score:** Continuous value from **0–100** (higher = better sleep quality)
-- **Classification:** Binary — **Good Sleep** (≥ 70) / **Poor Sleep** (< 70)
-- **Disturbance Detection:** Heuristic analysis explaining poor sleep episodes
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 FogSleepMonitor/
-├── 📁 data/                          # Dataset directory
-│   └── MMASH/                        # Raw MMASH data (22 subjects, auto-downloaded)
-├── 📁 dashboard/                     # Streamlit application
-│   └── app.py                        # Real-time monitoring dashboard
-├── 📁 fog_node/                      # Edge processing service
-│   └── fog_service.py                # Data ingestion, feature extraction & LSTM inference
-├── 📁 hardware/                      # Arduino firmware
-│   └── arduino_code/
-│       └── arduino_code.ino          # MPU6050 + PPG Pulse Sensor sketch
-├── 📁 models/                        # Trained ML artifacts
-│   ├── sleep_lstm_model.h5           # Trained Keras LSTM model (390 KB)
-│   ├── scaler.pkl                    # MinMaxScaler (pickle)
-│   └── model_metadata.pkl            # Training metrics + feature info (pickle)
-├── 📄 config.py                      # Centralized configuration & constants
-├── 📄 prepare_mmash_dataset.py       # MMASH dataset downloader & preprocessor
-├── 📄 train_model.py                 # LSTM training pipeline
-├── 📄 predict_realtime.py            # Standalone prediction diagnostic tool
-├── 📄 requirements.txt               # Python dependencies
-├── 📄 .gitignore                     # Git exclusion rules
-└── 📄 README.md                      # This file
+├── dashboard/app.py              # Streamlit real-time dashboard
+├── fog_node/fog_service.py       # Fog processing + TFLite inference
+├── hardware/arduino_code/        # Arduino .ino firmware
+├── models/
+│   ├── sleep_model.tflite        # Optimized LSTM model
+│   ├── sleep_lstm_model.h5       # Original Keras model
+│   └── scaler.pkl                # MinMaxScaler
+├── config.py                     # All settings
+├── prepare_mmash_dataset.py      # Dataset downloader + preprocessor
+├── train_model.py                # LSTM training pipeline
+├── convert_to_tflite.py          # Keras → TFLite conversion
+├── predict_realtime.py           # Standalone test script
+└── requirements.txt              # Python dependencies
 ```
-
-### Saved Model Artifacts (`models/`)
-
-| File | Format | Contents |
-|------|--------|----------|
-| `sleep_lstm_model.h5` | HDF5 (Keras) | Trained LSTM network weights |
-| `scaler.pkl` | Pickle | MinMaxScaler fitted on training features |
-| `model_metadata.pkl` | Pickle | Scaler + feature names + evaluation metrics + dataset info |
 
 ---
 
-## ⚙️ Installation & Setup
+## Setup & Run
 
-### Prerequisites
-- **Python 3.9+**
-- **Arduino IDE** (for flashing hardware firmware)
-- **Arduino UNO R3** + MPU-6050 + PPG Pulse Sensor (for real hardware mode)
-
-### 1. Clone the Repository
+### 1. Install
 
 ```bash
-git clone https://github.com/GuruMohith24/FogSleepMonitor.git
+git clone https://github.com/guhya-16/FogSleepMonitor.git
 cd FogSleepMonitor
-```
-
-### 2. Set Up Virtual Environment
-
-```bash
 python -m venv .venv
-
-# Activate (Windows PowerShell):
-.venv\Scripts\Activate.ps1
-
-# Activate (Windows CMD):
-.venv\Scripts\activate.bat
-
-# Activate (Mac/Linux):
-source .venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
+.venv\Scripts\Activate.ps1       # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Prepare Dataset & Train Model
+### 2. Train (optional — pre-trained model included)
 
 ```bash
-# Step 1: Download MMASH and generate training CSV (downloads ~23MB from PhysioNet)
-python prepare_mmash_dataset.py
-
-# Step 2: Train the LSTM model (takes ~5-10 minutes on CPU)
-python train_model.py
+python prepare_mmash_dataset.py   # Downloads MMASH dataset
+python train_model.py             # Trains LSTM
+python convert_to_tflite.py       # Converts to TFLite
 ```
 
-> **Note:** Pre-trained model files (`models/sleep_lstm_model.h5`, `models/scaler.pkl`) are included in the repo. You can skip Step 2 if you just want to run the system.
+### 3. Hardware Wiring
 
-### 5. Hardware Setup
+| MPU-6050 | Arduino | | Pulse Sensor | Arduino | | Actuators | Arduino |
+|----------|---------|---|-------------|---------|---|-----------|---------|
+| VCC | 5V | | + | 5V | | LED (+) | Pin 13 |
+| GND | GND | | – | GND | | Buzzer (+) | Pin 8 |
+| SDA | A4 | | S | A0 | | Both (–) | GND |
+| SCL | A5 | | | | | | |
 
-Connect the sensors to your Arduino UNO:
+Flash `hardware/arduino_code/arduino_code.ino` via Arduino IDE (baud: 115200).
 
-| Accelerometer(MPU6050) | Arduino UNO                  |
-| ------------- | ---------------------------- |
-| VCC           | 5V                          |
-| GND           | GND                          |
-| SDA           | A4                           |
-| SCL           | A5                           |
+### 4. Run
 
-| Sensor Pad | Connect To Arduino |
-| ---------- | ------------------ |
-| +          | 5V                 |
-| –          | GND                |
-| S          | A0                 |
-
-| Actuators (Alerts) | Connect To Arduino |
-| ------------------ | ------------------ |
-| LED Positive (+)   | Pin 13             |
-| LED Negative (- )  | GND                |
-| Buzzer Positive (+)| Pin 8              |
-| Buzzer Negative (-)| GND                |
-
-Flash `hardware/arduino_code/arduino_code.ino` using the Arduino IDE (baud rate: 115200).
-
----
-
-## 📈 Usage
-
-### Quick Test (No Hardware Needed)
-
+**Terminal 1** — Fog Node:
 ```bash
-# Run standalone prediction test with simulated data
-python predict_realtime.py
+$env:SLEEP_SERIAL_PORT="COM3"    # Set your port
+python fog_node/fog_service.py   # Falls back to mock data if no Arduino
 ```
 
-**Expected Output:**
-```
-Sample  5/30: buffering...
-Sample 10/30: buffering...
-...
---- Final Prediction ---
-  Sleep Score   : 68.8
-  Classification: Poor Sleep
-  Reason        : High movement or unstable HRV
-```
-
-### Full System (Fog Node + Dashboard)
-
-**Terminal 1** — Start the Fog Processing Node:
-```bash
-python fog_node/fog_service.py
-```
-> If no Arduino is connected, it automatically falls back to a **mock sensor stream** for demo purposes.
-
-**Terminal 2** — Start the Streamlit Dashboard:
+**Terminal 2** — Dashboard:
 ```bash
 streamlit run dashboard/app.py
 ```
 
-Open **http://localhost:8501** in your browser to see the real-time monitoring interface.
-
-### Configuration
-
-All settings are in `config.py`:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `SERIAL_PORT` | `COM3` | Arduino serial port (override with `SLEEP_SERIAL_PORT` env var) |
-| `BAUD_RATE` | `115200` | Serial communication speed |
-| `SEQ_LENGTH` | `30` | LSTM sliding window size (30 samples = 3 seconds at 10Hz) |
-| `SAMPLING_RATE_HZ` | `10` | Sensor data polling frequency |
-
-**Override serial port without editing code:**
-```bash
-# Windows
-set SLEEP_SERIAL_PORT=COM5
-
-# Linux/Mac
-export SLEEP_SERIAL_PORT=/dev/ttyUSB0
-```
+Open **http://localhost:8501** to view the live dashboard.
 
 ---
 
-## 🛠️ Tech Stack
+## Why Fog Computing?
 
-| Category | Technologies |
-|----------|-------------|
-| **Hardware** | Arduino UNO R3, PPG Pulse Sensor, MPU-6050 Accelerometer |
-| **Languages** | Python 3.9+, C++ (Arduino Sketch) |
-| **ML Framework** | TensorFlow / Keras (LSTM) |
-| **Data Processing** | NumPy, Pandas, Scikit-learn |
-| **Visualization** | Streamlit (real-time dashboard) |
-| **Communication** | PySerial (USB serial bridge) |
-| **Serialization** | Joblib + Pickle (model artifacts) |
+- **Privacy** — Health data stays on your machine, never uploaded to cloud
+- **Low Latency** — No network round-trips, instant predictions
+- **Offline** — Works without internet after model is trained
+- **Low Cost** — Arduino (~₹500) + free Python stack
 
 ---
 
-## 🔬 Why Fog Computing?
+## Tech Stack
 
-| Challenge | Our Solution |
-|-----------|-------------|
-| **Privacy Concerns** | All processing happens locally on your PC — no cloud uploads |
-| **Latency Issues** | Edge computing eliminates cloud API round-trips (~0ms network latency) |
-| **Noisy Sensor Data** | LSTM sliding windows provide temporal smoothing and noise suppression |
-| **Interpretability** | Feature importance + heuristic disturbance explanations |
-| **Cost** | Low-cost Arduino (~$5) + open-source Python stack |
-| **Offline Capability** | Works without internet connection after model is trained |
+| Layer | Tools |
+|-------|-------|
+| **Edge** | Arduino UNO, MPU-6050, PPG Pulse Sensor |
+| **Fog** | Python, TensorFlow Lite, NumPy, Pandas, Scikit-learn |
+| **Dashboard** | Streamlit |
+| **Communication** | PySerial (USB Serial) |
 
 ---
 
-## 🎯 Future Enhancements
+## Contributors
 
-- [ ] Multi-class sleep staging (REM, Deep, Light, Awake)
-- [ ] SpO2 sensor integration for oxygen saturation monitoring
-- [ ] XGBoost ensemble for comparison with LSTM
-- [ ] Mobile app companion for remote night monitoring
-- [ ] Cloud sync with end-to-end encryption for historical tracking
-- [ ] Battery-powered portable Fog Node (Raspberry Pi)
+- [@GuruMohith24](https://github.com/GuruMohith24)
+- [@guhya-16](https://github.com/guhya-16)
 
----
+## License
 
-## 👥 Contributors
-
-@GuruMohith24 (https://github.com/GuruMohith24
-@guhya-16 (https://github.com/guhya-16
-
-> **Original Repository:** [github.com/guhya-16/FogSleepMonitor](https://github.com/guhya-16/FogSleepMonitor)
-
----
-
-## 📚 References
-
-1. Schmidt, P. & Reiss, A. (2018). *MMASH — Multilevel Monitoring of Activity and Sleep in Healthy People* [Dataset]. PhysioNet. https://doi.org/10.24432/C57K5T
-2. Goldberger, A. et al. (2000). *PhysioBank, PhysioToolkit, and PhysioNet: Components of a New Research Resource for Complex Physiologic Signals*. Circulation, 101(23).
-3. Hochreiter, S. & Schmidhuber, J. (1997). *Long Short-Term Memory*. Neural Computation, 9(8), 1735–1780.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-<p align="center">
-  Made with ❤️ for better sleep quality monitoring<br>
-  <sub>Powered by Fog Computing • LSTM • Real Physiological Data</sub>
-</p>
+MIT
