@@ -56,14 +56,13 @@ FogSleepMonitor/
 ├── fog_node/fog_service.py       # Fog processing + TFLite inference
 ├── hardware/arduino_code/        # Arduino .ino firmware
 ├── models/
-│   ├── sleep_model.tflite        # Optimized LSTM model
+│   ├── sleep_model.tflite        # Optimized LSTM model (~64KB)
 │   ├── sleep_lstm_model.h5       # Original Keras model
 │   └── scaler.pkl                # MinMaxScaler
 ├── config.py                     # All settings
-├── prepare_mmash_dataset.py      # Dataset downloader + preprocessor
+├── prepare_mmash_dataset.py      # Dataset preprocessor (MMASH)
 ├── train_model.py                # LSTM training pipeline
 ├── convert_to_tflite.py          # Keras → TFLite conversion
-├── predict_realtime.py           # Standalone test script
 └── requirements.txt              # Python dependencies
 ```
 
