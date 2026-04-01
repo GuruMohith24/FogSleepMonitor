@@ -43,9 +43,11 @@ chart_window = st.sidebar.slider("Chart History (entries)", 50, 500, 100)
 
 # --- Main Layout ---
 st.markdown("### 📊 Live Sensory Data")
-col1, col2, col3, col4 = st.columns(4)
+col1, col2 = st.columns(2)
 placeholder_metric1 = col1.empty()
 placeholder_metric2 = col2.empty()
+
+col3, col4 = st.columns(2)
 placeholder_metric3 = col3.empty()
 placeholder_metric4 = col4.empty()
 
@@ -68,7 +70,12 @@ while True:
             pulse = float(latest["Pulse"])
             confidence = float(latest.get("Confidence", 0.0))
             sleep_score = confidence * 100
-            intensity = abs(latest['AcX']) + abs(latest['AcY']) + abs(latest['AcZ'])
+            # Convert raw int16 accelerometer to g-force first (÷16384), then strip Earth's 1.0g gravity
+            gx = latest['AcX'] / 16384.0
+            gy = latest['AcY'] / 16384.0
+            gz = latest['AcZ'] / 16384.0
+            g_magnitude = (gx**2 + gy**2 + gz**2) ** 0.5
+            intensity = round(abs(g_magnitude - 1.0), 3)  # Stationary = 0.000
 
             # Metric 1: Sleep State
             with placeholder_metric1.container():

@@ -1,0 +1,5 @@
+COM7: Standard Serial over Bluetooth link (COM7)
+COM3: Standard Serial over Bluetooth link (COM3)
+COM8: Arduino Uno (COM8)
+COM4: Standard Serial over Bluetooth link (COM4)
+COM6: Standard Serial over Bluetooth link (COM6)
